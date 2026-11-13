@@ -1,0 +1,115 @@
+version: 2
+
+sources:
+  - name: bankdemopg_mortgage_servicing
+    description: Mortgage servicing loan data replicated into Snowflake by Fivetran.
+    database: JRENDER_FIVETRAN_DATABASE
+    schema: BANKDEMOPG__MORTGAGE_SERVICING
+    tables:
+      - name: serviced_loans
+        identifier: RAW_SERVICED_LOANS
+        description: Raw serviced loan records used to join payments on servicing_id.
+
+  - name: bankdemo_mortgage_servicing
+    description: Mortgage servicing payment data replicated into Snowflake by Fivetran.
+    database: JRENDER_FIVETRAN_DATABASE
+    schema: BANKDEMO__MORTGAGE_SERVICING
+    tables:
+      - name: payments
+        identifier: RAW_PAYMENTS
+        description: Raw mortgage payment records associated with serviced loans through servicing_id.
+
+models:
+  - name: mortgage_loan_payments
+    description: >-
+      Mortgage payments inner joined to serviced loans on servicing_id.
+      Includes payment_id, all serviced loan columns, and the payment fields
+      escrow_amount, payment_status, payment_amount, principal_amount,
+      interest_amount, and payment_date. Payments without a matching serviced
+      loan are excluded. The output grain depends on the uniqueness of
+      servicing_id in the loan source.
+    semantic_model:
+      enabled: true
+    agg_time_dimension: payment_day
+    derived_semantics:
+      dimensions:
+        - name: payment_day
+          type: time
+          granularity: day
+          expr: to_date(payment_date)
+    columns:
+      - name: payment_id
+        description: Payment identifier from the payments source; one row per payment.
+        entity:
+          name: mortgage_payment
+          type: primary
+        data_tests:
+          - unique
+          - not_null
+      - name: servicing_id
+        description: Servicing identifier from the loan source used to match payments.
+        entity:
+          name: serviced_loan
+          type: foreign
+        data_tests:
+          - not_null
+      - name: escrow_amount
+        description: Escrow amount returned by the supplied source query.
+      - name: payment_status
+        description: Status returned by the supplied source query.
+        dimension:
+          type: categorical
+      - name: payment_amount
+        description: Payment amount returned by the supplied source query.
+      - name: principal_amount
+        description: Principal amount returned by the supplied source query.
+      - name: interest_amount
+        description: Interest amount returned by the supplied source query.
+      - name: payment_date
+        description: Payment date stored as text; the payment_day semantic dimension casts it to a date.
+        data_tests:
+          - not_null
+
+    metrics:
+      - name: mortgage_payment_count
+        label: Mortgage Payment Count
+        description: Number of payments with a matching serviced loan, including all payment statuses.
+        type: simple
+        agg: count
+        expr: payment_id
+      - name: mortgage_serviced_loans_with_payments
+        label: Serviced Loans with Payments
+        description: Distinct servicing IDs with matching payments in the selected period; not a count of all serviced loans.
+        type: simple
+        agg: count_distinct
+        expr: servicing_id
+      - name: mortgage_total_payment_amount
+        label: Total Mortgage Payment Amount
+        description: Sum of payment amounts for matched payments, including all statuses unless filtered; not necessarily cash collected.
+        type: simple
+        agg: sum
+        expr: payment_amount
+      - name: mortgage_total_principal_amount
+        label: Total Mortgage Principal Amount
+        description: Sum of principal amounts on matched payments, including all statuses unless filtered.
+        type: simple
+        agg: sum
+        expr: principal_amount
+      - name: mortgage_total_interest_amount
+        label: Total Mortgage Interest Amount
+        description: Sum of interest amounts on matched payments, including all statuses unless filtered.
+        type: simple
+        agg: sum
+        expr: interest_amount
+      - name: mortgage_total_escrow_amount
+        label: Total Mortgage Escrow Amount
+        description: Sum of escrow amounts on matched payment rows, including all statuses unless filtered.
+        type: simple
+        agg: sum
+        expr: escrow_amount
+      - name: mortgage_average_payment_amount
+        label: Average Mortgage Payment Amount
+        description: Average non-null payment amount on matched payments, including all statuses unless filtered.
+        type: simple
+        agg: average
+        expr: payment_amount

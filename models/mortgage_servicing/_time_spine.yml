@@ -1,0 +1,14 @@
+version: 2
+
+models:
+  - name: time_spine_daily
+    description: Daily calendar from 2000-01-01 through 2099-12-31 for Semantic Layer time-based queries. Extend this range if payment dates fall outside it.
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        description: Calendar date at daily grain.
+        granularity: day
+        data_tests:
+          - unique
+          - not_null
