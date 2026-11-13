@@ -1,0 +1,58 @@
+version: 2
+
+models:
+  - name: stg_mortgage_servicing__serviced_loans
+    description: Source-aligned serviced loans. Preserves source types and all columns, including Fivetran metadata; no soft-delete filtering is applied.
+    columns:
+      - name: servicing_id
+        description: Identifier used to associate serviced loans with payments.
+        data_tests:
+          - unique
+          - not_null
+      - name: unpaid_principal_balance
+        description: Loan-level unpaid principal balance; repeated across payments downstream and must not be summed at payment grain.
+      - name: servicing_status
+        description: Source servicing status.
+      - name: customer_id
+        description: Source customer identifier.
+      - name: boarding_date
+        description: Source boarding date, preserved as text.
+      - name: loan_id
+        description: Source loan identifier.
+      - name: _fivetran_deleted
+        description: Fivetran soft-delete flag, retained without filtering.
+      - name: _fivetran_synced
+        description: Fivetran synchronization timestamp.
+
+  - name: stg_mortgage_servicing__payments
+    description: Source-aligned mortgage payments. Preserves source types and all columns without filtering statuses or soft-deleted rows.
+    columns:
+      - name: payment_id
+        description: Source payment identifier.
+        data_tests:
+          - unique
+          - not_null
+      - name: servicing_id
+        description: Source servicing identifier used to join loans.
+      - name: payment_date
+        description: Source payment date, preserved as text for output compatibility.
+
+  - name: int_mortgage_servicing__loan_payments
+    description: Payment-grain inner join of staged payments to staged serviced loans. Unmatched payments are excluded; Fivetran metadata comes from the loan record.
+
+  - name: mart_mortgage_loan_payments
+    description: Explicit 15-column loan-payment projection. Feeds the existing mortgage_loan_payments table, which retains its semantic model and metrics.
+    columns:
+      - name: payment_id
+        description: Unique payment identifier for matched payments.
+        data_tests:
+          - unique
+          - not_null
+      - name: servicing_id
+        description: Matched serviced-loan identifier.
+        data_tests:
+          - not_null
+      - name: payment_date
+        description: Payment date preserved as text.
+        data_tests:
+          - not_null
